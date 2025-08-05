@@ -14,6 +14,7 @@ Version=9.85
 Sub Class_Globals
 	Private Root As B4XView
 	Private xui As XUI
+	Private AS_WeekdaySelector1 As AS_WeekdaySelector
 End Sub
 
 Public Sub Initialize
@@ -24,24 +25,16 @@ End Sub
 Private Sub B4XPage_Created (Root1 As B4XView)
 	Root = Root1
 	Root.LoadLayout("frm_main")
+	
+
+	
 End Sub
 
 
-Private Sub AS_WeekdaySelector1_WeekDayClicked(DayInWeek As Int,ClickState As Int)
-	Select DayInWeek
-		Case 1
-			Log("Friday Clicked")
-		Case 2
-			Log("Thursday Clicked")
-		Case 3
-			Log("Wednesday Clicked")
-		Case 4
-			Log("Tuesday Clicked")
-		Case 5
-			Log("Monday Clicked")
-		Case 6
-			Log("Sunday Clicked")
-		Case 7
-			Log("Saturday Clicked")
-	End Select
+Private Sub AS_WeekdaySelector1_WeekDayClicked(WeekDay As AS_WeekdaySelector_WeekDay,ClickState As Int)
+	Log($"${WeekDay.WeekNameLong} on ${DateTime.Date(WeekDay.Date)} Clicked"$)
+End Sub
+
+Private Sub AS_WeekdaySelector2_WeekDayClicked(WeekDay As AS_WeekdaySelector_WeekDay,ClickState As Int)
+	Log($"${WeekDay.WeekNameLong} on ${DateTime.Date(WeekDay.Date)} Clicked"$)
 End Sub
