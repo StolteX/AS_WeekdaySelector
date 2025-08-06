@@ -15,6 +15,7 @@ Sub Class_Globals
 	Private Root As B4XView
 	Private xui As XUI
 	Private AS_WeekdaySelector1 As AS_WeekdaySelector
+	Private AS_WeekdaySelector2 As AS_WeekdaySelector
 End Sub
 
 Public Sub Initialize
@@ -26,8 +27,6 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	Root = Root1
 	Root.LoadLayout("frm_main")
 	
-
-	
 End Sub
 
 
@@ -37,4 +36,5 @@ End Sub
 
 Private Sub AS_WeekdaySelector2_WeekDayClicked(WeekDay As AS_WeekdaySelector_WeekDay,ClickState As Int)
 	Log($"${WeekDay.WeekNameLong} on ${DateTime.Date(WeekDay.Date)} Clicked"$)
+	
 End Sub

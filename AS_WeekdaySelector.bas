@@ -6,16 +6,26 @@ Version=8.3
 @EndOfDesignText@
 'AS_WeekdaySelector
 'Author: Alexander Stolte
-'Version: V1.00
+'Version: V1.01
 
 #If Documentation
 Changelog:
 V1.00
 	-Release
-	
+V1.01
+	-New get and set BodySelectedTextColor
+	-New Themes - You can now switch to Light or Dark mode
+	-New set Theme
+	-New get Theme_Dark
+	-New get Theme_Light
+	-New Designer Property ThemeChangeTransition
+		-Default: None
+	-New ClearSelections
+	-New SelectWeekDay - Values are between 1 to 7, where 1 means sunday
+	-New SelectWeekDay2 - Selects the day of the week by date
 #End If
 
-
+#DesignerProperty: Key: ThemeChangeTransition, DisplayName: ThemeChangeTransition, FieldType: String, DefaultValue: None, List: None|Fade
 #DesignerProperty: Key: FirstDayOfWeek, DisplayName: First Day of Week, FieldType: String, DefaultValue: Monday, List: Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday
 #DesignerProperty: Key: HeaderText, DisplayName: HeaderText, FieldType: String, DefaultValue: WeekDay, List: WeekDay|DayOfMonth|None
 #DesignerProperty: Key: BodyText, DisplayName: BodyText, FieldType: String, DefaultValue: DayOfMonth, List: WeekDay|DayOfMonth|None
@@ -26,6 +36,7 @@ V1.00
 
 #DesignerProperty: Key: HeaderTextColor, DisplayName: HeaderTextColor, FieldType: Color, DefaultValue: 0x87FFFFFF
 #DesignerProperty: Key: BodyTextColor, DisplayName: BodyTextColor, FieldType: Color, DefaultValue: 0xFFFFFFFF
+#DesignerProperty: Key: BodySelectedTextColor, DisplayName: BodySelectedTextColor, FieldType: Color, DefaultValue: 0xFFFFFFFF
 
 #Event: WeekDayClicked(WeekDay As AS_WeekdaySelector_WeekDay,ClickState As Int)
 
@@ -45,6 +56,7 @@ Sub Class_Globals
 	Private g_WeekNameLong As AS_WeekdaySelector_WeekNameLong
 	Private m_WeekNameShortList As List
 	Private m_WeekNameLongList As List
+	Private m_SelectionMap As Map
 	
 	Private xpnl_Background As B4XView
 	
@@ -56,8 +68,68 @@ Sub Class_Globals
 	Private m_SecondClickColor As Int
 	Private m_HeaderTextColor As Int
 	Private m_BodyTextColor As Int
+	Private m_BodySelectedTextColor As Int
 	Private m_Week As Long
 	Private m_ClickAmount As Int
+	Private m_ThemeChangeTransition As String
+	
+	Private xiv_RefreshImage As B4XView
+	
+	Type AS_WeekdaySelector_Theme(BackgroundColor As Int,NormalColor As Int,HeaderTextColor As Int,BodyTextColor As Int,BodySelectedTextColor As String)
+	
+End Sub
+
+Public Sub setTheme(Theme As AS_WeekdaySelector_Theme)
+	
+	xiv_RefreshImage.SetBitmap(mBase.Snapshot)
+	xiv_RefreshImage.SetVisibleAnimated(0,True)
+
+	xpnl_Background.Color = Theme.BackgroundColor
+	m_BodyTextColor = Theme.BodyTextColor
+	m_HeaderTextColor = Theme.HeaderTextColor
+	m_NormalColor = Theme.NormalColor
+	m_BodySelectedTextColor = Theme.BodySelectedTextColor
+	
+	
+	Sleep(0)
+	
+	CreateWeek
+
+	Select m_ThemeChangeTransition
+		Case "None"
+			xiv_RefreshImage.SetVisibleAnimated(0,False)
+		Case "Fade"
+			Sleep(250)
+			xiv_RefreshImage.SetVisibleAnimated(250,False)
+	End Select
+
+End Sub
+
+Public Sub getTheme_Dark As AS_WeekdaySelector_Theme
+	
+	Dim Theme As AS_WeekdaySelector_Theme
+	Theme.Initialize
+	Theme.BackgroundColor = xui.Color_ARGB(255,19, 20, 22)
+	Theme.NormalColor = 0xFF343434
+	Theme.HeaderTextColor = xui.Color_White
+	Theme.BodyTextColor = xui.Color_White
+	Theme.BodySelectedTextColor = xui.Color_White
+	
+	Return Theme
+	
+End Sub
+
+Public Sub getTheme_Light As AS_WeekdaySelector_Theme
+	
+	Dim Theme As AS_WeekdaySelector_Theme
+	Theme.Initialize
+	Theme.BackgroundColor = xui.Color_White
+	Theme.NormalColor = xui.Color_ARGB(255,233, 233, 233)
+	Theme.HeaderTextColor = xui.Color_Black
+	Theme.BodyTextColor = xui.Color_Black
+	Theme.BodySelectedTextColor = xui.Color_White
+	
+	Return Theme
 	
 End Sub
 
@@ -66,6 +138,7 @@ Public Sub Initialize (Callback As Object, EventName As String)
 	mCallBack = Callback
 	m_WeekNameShortList.Initialize
 	m_WeekNameLongList.Initialize
+	m_SelectionMap.Initialize
 End Sub
 
 'Base type must be Object
@@ -79,6 +152,17 @@ Public Sub DesignerCreateView (Base As Object, Lbl As Label, Props As Map)
 	xpnl_Background = xui.CreatePanel("")
 	mBase.AddView(xpnl_Background,0,0,mBase.Width,mBase.Height)
   
+	xiv_RefreshImage = CreateImageView("")
+	xiv_RefreshImage.Visible = False
+	mBase.AddView(xiv_RefreshImage,0,0,mBase.Width,mBase.Height)
+  
+	CreateWeek
+  
+End Sub
+
+Private Sub CreateWeek
+	
+	xpnl_Background.RemoveAllViews
 	Dim tmpList As List = GenerateWeekDayList
   
 	Dim HeaderHeight As Float = IIf(m_HeaderText = "None",0,20dip)
@@ -126,17 +210,41 @@ Public Sub DesignerCreateView (Base As Object, Lbl As Label, Props As Map)
 		
 		Dim WeekDay As AS_WeekdaySelector_WeekDay
 		WeekDay.Initialize
-		WeekDay.Date = GetFirstDayOfWeek2(m_Week,m_FirstDayOfWeek)+DateTime.TicksPerDay*i
+		WeekDay.Date = JustDate(GetFirstDayOfWeek2(m_Week,m_FirstDayOfWeek)+DateTime.TicksPerDay*i)
 		WeekDay.DayInWeek = DateTime.GetDayOfWeek(WeekDay.Date)
 		WeekDay.WeekNameShort = m_WeekNameShortList.Get(tmpList.Get(i))
 		WeekDay.WeekNameLong = m_WeekNameLongList.Get(tmpList.Get(i))
 		xpnl_WeekDayBackground.Tag = WeekDay
 		
+		If m_SelectionMap.ContainsKey(WeekDay.Date) Then
+		
+			If m_SelectionMap.Get(WeekDay.Date).As(Int) = 1 Then
+				xlbl_WeekDay.SetColorAnimated(0,xlbl_WeekDay.Color,m_FirstClickColor)
+				xlbl_WeekDay.TextColor = m_BodySelectedTextColor
+				xlbl_WeekDay.Tag = 1
+			else If m_SelectionMap.Get(WeekDay.Date).As(Int) = 2 And m_ClickAmount = 2 Then
+				xlbl_WeekDay.SetColorAnimated(0,xlbl_WeekDay.Color,m_SecondClickColor)
+				xlbl_WeekDay.TextColor = m_BodySelectedTextColor
+				xlbl_WeekDay.Tag = 2
+			Else
+				xlbl_WeekDay.SetColorAnimated(0,xlbl_WeekDay.Color,m_NormalColor)
+				xlbl_WeekDay.TextColor = m_BodyTextColor
+				xlbl_WeekDay.Tag = 0
+			End If
+		
+		End If
+		
 	Next
-  
+	
+End Sub
+
+Private Sub JustDate(Date As Long) As Long
+	Return DateUtils.SetDate(DateTime.GetYear(Date),DateTime.GetMonth(Date),DateTime.GetDayOfMonth(Date))
 End Sub
 
 Private Sub Base_Resize (Width As Double, Height As Double)
+  
+	xiv_RefreshImage.SetLayoutAnimated(0,0,0,Width,Height)
   
 End Sub
 
@@ -146,33 +254,49 @@ Private Sub xlbl_WeekDay_MouseClicked (EventData As MouseEvent)
 Private Sub xlbl_WeekDay_Click
 #End If
 	Dim xlbl_WeekDay As B4XView = Sender
+	Dim ThisDate As Long = JustDate(xlbl_WeekDay.Parent.Tag.As(AS_WeekdaySelector_WeekDay).Date)
 	If xlbl_WeekDay.Tag.As(Int) = 0 Then
 		xlbl_WeekDay.SetColorAnimated(250,xlbl_WeekDay.Color,m_FirstClickColor)
+		xlbl_WeekDay.TextColor = m_BodySelectedTextColor
 		xlbl_WeekDay.Tag = 1
+		m_SelectionMap.Put(ThisDate,1)
 	else If xlbl_WeekDay.Tag.As(Int) = 1 And m_ClickAmount = 2 Then
 		xlbl_WeekDay.SetColorAnimated(250,xlbl_WeekDay.Color,m_SecondClickColor)
+		xlbl_WeekDay.TextColor = m_BodySelectedTextColor
 		xlbl_WeekDay.Tag = 2
+		m_SelectionMap.Put(ThisDate,2)
 	Else
 		xlbl_WeekDay.SetColorAnimated(250,xlbl_WeekDay.Color,m_NormalColor)
+		xlbl_WeekDay.TextColor = m_BodyTextColor
 		xlbl_WeekDay.Tag = 0
+		m_SelectionMap.Remove(ThisDate)
 	End If
 	WeekDayClicked(xlbl_WeekDay.Parent.Tag,xlbl_WeekDay.Tag)
 End Sub
 
-Public Sub Clear
-	For i = 0 To xpnl_Background.NumberOfViews -1
-		Dim xlbl_WeekDay As B4XView = xpnl_Background.GetView(i).GetView(1)
-		xlbl_WeekDay.SetColorAnimated(250,xlbl_WeekDay.Color,m_NormalColor)
-		xlbl_WeekDay.Tag = 0
-	Next
-End Sub
-
+'Values are between 1 to 7, where 1 means sunday
 Public Sub SelectWeekDay(WeekDay As Int)
 	For i = 0 To xpnl_Background.NumberOfViews -1
-		If WeekDay = xpnl_Background.GetView(i).Tag Then
+		Dim WeekDayItem As AS_WeekdaySelector_WeekDay = xpnl_Background.GetView(i).Tag
+		If WeekDayItem.DayInWeek = WeekDay Then
 			Dim xlbl_WeekDay As B4XView = xpnl_Background.GetView(i).GetView(1)
 			xlbl_WeekDay.SetColorAnimated(250,xlbl_WeekDay.Color,m_FirstClickColor)
 			xlbl_WeekDay.Tag = 1
+			m_SelectionMap.Put(WeekDayItem.Date,1)
+			Exit
+		End If
+	Next
+End Sub
+
+'Selects the day of the week by date
+Public Sub SelectWeekDay2(Date As Long)
+	For i = 0 To xpnl_Background.NumberOfViews -1
+		Dim WeekDayItem As AS_WeekdaySelector_WeekDay = xpnl_Background.GetView(i).Tag
+		If WeekDayItem.Date = DateUtils.SetDate(DateTime.GetYear(Date),DateTime.GetMonth(Date),DateTime.GetDayOfMonth(Date)) Then
+			Dim xlbl_WeekDay As B4XView = xpnl_Background.GetView(i).GetView(1)
+			xlbl_WeekDay.SetColorAnimated(250,xlbl_WeekDay.Color,m_FirstClickColor)
+			xlbl_WeekDay.Tag = 1
+			m_SelectionMap.Put(WeekDayItem.Date,1)
 			Exit
 		End If
 	Next
@@ -211,12 +335,14 @@ Private Sub IniProps(Props As Map)
 	m_HeaderText = Props.Get("HeaderText")
 	m_BodyText = Props.Get("BodyText")
 	m_ClickAmount = Props.Get("ClickAmount")
+	m_ThemeChangeTransition = Props.GetDefault("ThemeChangeTransition","None")
 
 	m_NormalColor = xui.PaintOrColorToColor(Props.Get("NormalColor"))
 	m_FirstClickColor = xui.PaintOrColorToColor(Props.Get("FirstClickColor"))
 	m_SecondClickColor = xui.PaintOrColorToColor(Props.Get("SecondClickColor"))
 	m_HeaderTextColor = xui.PaintOrColorToColor(Props.Get("HeaderTextColor"))
 	m_BodyTextColor = xui.PaintOrColorToColor(Props.Get("BodyTextColor"))
+	m_BodySelectedTextColor = xui.PaintOrColorToColor(Props.GetDefault("BodySelectedTextColor",xui.Color_White))
 
 	If "Sunday" = Props.Get("FirstDayOfWeek") Then
 		m_FirstDayOfWeek = 1
@@ -260,6 +386,22 @@ Private Sub RefreshWeekNameShort
 End Sub
 
 #Region Properties
+
+
+
+Public Sub ClearSelections
+	m_SelectionMap.Clear
+	CreateWeek
+End Sub
+
+'Fade or None
+Public Sub setThemeChangeTransition(ThemeChangeTransition As String)
+	m_ThemeChangeTransition = ThemeChangeTransition
+End Sub
+
+Public Sub getThemeChangeTransition As String
+	Return m_ThemeChangeTransition
+End Sub
 
 Public Sub setBodyTextColor(BodyTextColor As Int)
 	m_BodyTextColor = BodyTextColor
@@ -392,6 +534,14 @@ Public Sub BodyText_DayOfMonth As String
 	Return "DayOfMonth"
 End Sub
 
+Public Sub getThemeChangeTransition_Fade As String
+	Return "Fade"
+End Sub
+
+Public Sub getThemeChangeTransition_None As String
+	Return "None"
+End Sub
+
 #End Region
 
 #Region Events
@@ -439,6 +589,12 @@ Public Sub GetWeekNameByIndex(Index As Int) As String
 	Else
 		Return g_WeekNameShort.Saturday
 	End If
+End Sub
+
+Private Sub CreateImageView(EventName As String) As B4XView
+	Dim iv As ImageView
+	iv.Initialize(EventName)
+	Return iv
 End Sub
 
 #End Region
